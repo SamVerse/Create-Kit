@@ -5,7 +5,6 @@ import sql from "../configs/db.js";
 import axios from "axios";
 import { v2 as cloudinary } from "cloudinary";
 import fs from "fs";
-import * as pdfParse from "pdf-parse";
 
 // Initialize OpenAI client for Gemini
 const openai = new OpenAI({
@@ -373,11 +372,33 @@ export const resumeReview = async (req: Request, res: Response) => {
     const dataBuffer = fs.readFileSync(resume.path);
     fs.unlinkSync(resume.path); // Delete the file after reading
 
-    // Use the simpler pdf-parse default API to extract text. This avoids
-    // direct use of internal classes that may pull optional native canvas
-    // bindings (which can cause warnings in serverless environments).
-    const parsed = await (pdfParse as any)(dataBuffer as Buffer);
-    const resumeText = (parsed && (parsed.text || parsed?.textContent)) || "";
+    // Polyfill minimal DOM classes expected by pdfjs to avoid runtime
+    // ReferenceErrors in serverless environments where DOM globals are missing.
+    if (typeof (globalThis as any).DOMMatrix === "undefined") {
+      (globalThis as any).DOMMatrix = class DOMMatrix {};
+    }
+    if (typeof (globalThis as any).ImageData === "undefined") {
+      (globalThis as any).ImageData = class ImageData {
+        constructor() {}
+      };
+    }
+    if (typeof (globalThis as any).Path2D === "undefined") {
+      (globalThis as any).Path2D = class Path2D {};
+    }
+
+    // Import pdf-parse dynamically after polyfills to avoid the module
+    // evaluating code paths that expect DOM globals during top-level import.
+    const { PDFParse } = await import("pdf-parse");
+
+    // Parse the PDF to extract text using the v2 API
+    const parser = new PDFParse({ data: dataBuffer });
+    const result = await parser.getText();
+    if (typeof parser.destroy === "function") {
+      await parser.destroy();
+    }
+
+    // Store the extracted text
+    const resumeText = result?.text || "";
 
     // Error handling for empty resume text
     if (!resumeText || resumeText.trim().length === 0) {
