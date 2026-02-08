@@ -1,6 +1,6 @@
 import { clerkClient, getAuth } from "@clerk/express";
 import { Request, Response } from "express";
-import OpenAI from "openai";
+import {OpenAI} from "openai";
 import sql from "../configs/db.js";
 import axios from "axios";
 import { v2 as cloudinary } from "cloudinary";
