@@ -33,7 +33,8 @@ app.use('/api/ai', aiRouter);
 // User Routes
 app.use('/api/user', userRouter); 
 
-
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
 });
+
+export default app;
