@@ -5,7 +5,7 @@ import sql from "../configs/db.js";
 import axios from "axios";
 import { v2 as cloudinary } from "cloudinary";
 import fs from "fs";
-import { PDFParse } from "pdf-parse";
+import * as pdfParse from "pdf-parse";
 
 // Initialize OpenAI client for Gemini
 const openai = new OpenAI({
@@ -373,18 +373,11 @@ export const resumeReview = async (req: Request, res: Response) => {
     const dataBuffer = fs.readFileSync(resume.path);
     fs.unlinkSync(resume.path); // Delete the file after reading
 
-    // Parse the PDF to extract text
-    const parser = new PDFParse({
-      data: dataBuffer,
-    });
-
-    // Extract text from the parsed PDF
-    const result = await parser.getText();
-    // Destroy the parser to free up resources
-    await parser.destroy();
-
-    // Store the extracted text
-    const resumeText = result.text;
+    // Use the simpler pdf-parse default API to extract text. This avoids
+    // direct use of internal classes that may pull optional native canvas
+    // bindings (which can cause warnings in serverless environments).
+    const parsed = await (pdfParse as any)(dataBuffer as Buffer);
+    const resumeText = (parsed && (parsed.text || parsed?.textContent)) || "";
 
     // Error handling for empty resume text
     if (!resumeText || resumeText.trim().length === 0) {
