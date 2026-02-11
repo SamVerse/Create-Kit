@@ -22,13 +22,14 @@
     "express": "^5.2.1",
     "multer": "^2.0.2",
     "openai": "^6.17.0",
-    "pdf-parse": "^2.4.5"
+    "pdf-parse": "^1.1.1"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/multer": "^2.0.0",
     "@types/node": "^25.1.0",
+    "@types/pdf-parse": "^1.1.5",
     "nodemon": "^3.1.11",
     "ts-node": "^10.9.2",
     "tsx": "^4.21.0",

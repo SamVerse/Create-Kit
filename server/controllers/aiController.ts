@@ -1,10 +1,10 @@
 import { clerkClient, getAuth } from "@clerk/express";
 import { Request, Response } from "express";
-import {OpenAI} from "openai";
+import {OpenAI} from "openai";  
 import sql from "../configs/db.js";
 import axios from "axios";
 import { v2 as cloudinary } from "cloudinary";
-import fs from "fs";
+import pdf from "pdf-parse";
 
 // Initialize OpenAI client for Gemini
 const openai = new OpenAI({
@@ -349,106 +349,83 @@ export const resumeReview = async (req: Request, res: Response) => {
 
     const plan = req.plan; // 'free' or 'premium'
 
-    // Check if plan is free
-    if (plan != "premium") {
+    if (plan !== "premium") {
       return res.status(403).json({
         error:
           "Resume review is available for premium users only. Please upgrade to premium.",
       });
     }
 
-    if (!resume) {
-      return res.status(400).json({ error: "No resume uploaded" });
+    // File size check (5MB)
+    if (resume.size > 5 * 1024 * 1024) {
+      return res.status(400).json({
+        success: false,
+        error: "Resume file size exceeds 5MB limit.",
+      });
     }
 
-    // Check file size (e.g., limit to 5MB)
-    if (resume?.size! > 5 * 1024 * 1024) {
-      return res
-        .status(400)
-        .json({ success: false, error: "Resume file size exceeds 5MB limit." });
-    }
-
-    // Convert the uploaded resume file to a buffer for processing
+    // We use the file buffer directly from memory storage, which is more efficient for small files like resumes. This avoids unnecessary disk I/O and simplifies cleanup.
     const dataBuffer = resume.buffer;
 
-    // Polyfill minimal DOM classes expected by pdfjs to avoid runtime
-    // ReferenceErrors in serverless environments where DOM globals are missing.
-    if (typeof (globalThis as any).DOMMatrix === "undefined") {
-      (globalThis as any).DOMMatrix = class DOMMatrix {};
-    }
-    if (typeof (globalThis as any).ImageData === "undefined") {
-      (globalThis as any).ImageData = class ImageData {
-        constructor() {}
-      };
-    }
-    if (typeof (globalThis as any).Path2D === "undefined") {
-      (globalThis as any).Path2D = class Path2D {};
-    }
+    // We then parse the PDF buffer to extract text 
+    const data = await pdf(dataBuffer);
+    const resumeText = data.text;
 
-    // Import pdf-parse dynamically after polyfills to avoid the module
-    // evaluating code paths that expect DOM globals during top-level import.
-    const { PDFParse } = await import("pdf-parse");
-
-    // Parse the PDF to extract text using the v2 API
-    const parser = new PDFParse({ data: dataBuffer });
-    const result = await parser.getText();
-    if (typeof parser.destroy === "function") {
-      await parser.destroy();
-    }
-
-    // Store the extracted text
-    const resumeText = result?.text || "";
-
-    // Error handling for empty resume text
     if (!resumeText || resumeText.trim().length === 0) {
-      return res
-        .status(400)
-        .json({ error: "Uploaded resume is empty or could not extract text." });
+      return res.status(400).json({
+        error: "Uploaded resume is empty or could not extract text.",
+      });
     }
 
     const prompt = `
-      You are an expert technical recruiter.
+You are an expert technical recruiter.
 
-      Review the following resume and return your feedback in this structure:
+Review the following resume and return your feedback in this structure:
 
-      1. Overall Impression (2–3 sentences)
-      2. Strengths (bullet points)
-      3. Weaknesses (bullet points)
-      4. Suggestions for Improvement (bullet points)
-      5. Final Verdict (1 paragraph)
+1. Overall Impression (2–3 sentences)
+2. Strengths (bullet points)
+3. Weaknesses (bullet points)
+4. Suggestions for Improvement (bullet points)
+5. Final Verdict (1 paragraph)
 
-      Be concise but specific.
+Be concise but specific.
 
-      Resume:
-      ${resumeText}
-    `;
+Resume:
+${resumeText}
+`;
 
-    // Call Gemini to review the resume
     const response = await openai.chat.completions.create({
       model: "gemini-3-flash-preview",
       messages: [
         {
           role: "user",
-          content: `${prompt}`,
+          content: prompt,
         },
       ],
       temperature: 0.7,
       max_tokens: 1600,
     });
 
-    const content = response.choices[0].message?.content;
+    // Extract the content from the response
+    const content = response.choices[0]?.message?.content;
 
-    //  Error handling for missing resume review content
     if (!content) {
       return res.status(500).json({ error: "Failed to review resume." });
     }
 
-    // Store the generated resume review in the database
-    await sql`INSERT INTO creations (user_id, prompt, content, type) VALUES (${userId}, ${`Review the uploaded resume`}, ${content}, 'resume-review')`;
+    // Storing the resume review in the database
+    await sql`
+      INSERT INTO creations (user_id, prompt, content, type)
+      VALUES (${userId}, 'Review the uploaded resume', ${content}, 'resume-review')
+    `;
 
-    res.status(200).json({ success: true, content: content });
+    res.status(200).json({ success: true, content });
   } catch (error) {
-    console.log("Resume review generation error:", error);
-    res.status(500).json({ success: false, error: "Resume review failed." });
+    console.error("Resume review generation error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Resume review failed.",
+    });
   }
 };
+
