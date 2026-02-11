@@ -368,9 +368,8 @@ export const resumeReview = async (req: Request, res: Response) => {
         .json({ success: false, error: "Resume file size exceeds 5MB limit." });
     }
 
-    // Read the uploaded resume file and convert to buffer
-    const dataBuffer = fs.readFileSync(resume.path);
-    fs.unlinkSync(resume.path); // Delete the file after reading
+    // Convert the uploaded resume file to a buffer for processing
+    const dataBuffer = resume.buffer;
 
     // Polyfill minimal DOM classes expected by pdfjs to avoid runtime
     // ReferenceErrors in serverless environments where DOM globals are missing.

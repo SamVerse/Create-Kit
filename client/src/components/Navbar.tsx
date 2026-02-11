@@ -9,13 +9,14 @@ const Navbar = () => {
   const { openSignIn } = useClerk();
 
   return (
-    <div className="fixed z-5 w-full backdrop-blur-2xl flex justify-between items-center py-3 px-4 sm:px-20 xl:px-32">
-      <img
-        src={assets.logo}
-        alt="Logo"
-        className="w-32 sm:w-44 cursor-pointer"
+    <div className="fixed z-5 w-full backdrop-blur-2xl flex justify-between items-center  px-4 py-3 sm:px-20 xl:px-32">
+      <div
         onClick={() => navigate("/")}
-      />
+        className="flex items-center justify-center gap-2 cursor-pointer"
+      >
+        <img src={assets.logo} alt="Logo" className="h-10" />
+        <span className="text-2xl font-bold text-[#5044E5]">CreateKit</span>
+      </div>
 
       {user ? (
         <div className="flex items-center gap-4">

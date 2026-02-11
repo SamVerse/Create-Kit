@@ -31,4 +31,8 @@ app.use("/api", requireAuth());
 app.use("/api/ai", aiRouter);
 app.use("/api/user", userRouter);
 
+app.listen(process.env.PORT || 3000, () => {
+  console.log(`Server is running on port ${process.env.PORT || 3000}`);
+});
+
 export default app;
